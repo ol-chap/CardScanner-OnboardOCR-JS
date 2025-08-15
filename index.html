@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>CardScan → VCF</title>
+  <meta name="theme-color" content="#0ea5e9" />
+  <style>
+    :root {
+      --bg: #0b1220;            /* deep indigo */
+      --card: #0f172a;          /* slate-900 */
+      --muted: #94a3b8;         /* slate-400 */
+      --text: #e2e8f0;          /* slate-200 */
+      --accent: #38bdf8;        /* sky-400 */
+      --accent-strong: #0ea5e9; /* sky-500 */
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --err: #ef4444;
+    }
+    html,body{height:100%;}
+    body{
+      margin:0; background:linear-gradient(180deg, #0b1220, #111827);
+      color:var(--text); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+      display:flex; align-items:center; justify-content:center; padding:16px;
+    }
+    .app{ width:100%; max-width:420px; background:rgba(15,23,42,.85); border:1px solid rgba(148,163,184,.12); border-radius:20px; box-shadow:0 10px 35px rgba(0,0,0,.45); overflow:hidden; }
+    header{ padding:18px 18px 12px; display:flex; align-items:center; gap:12px; border-bottom:1px solid rgba(148,163,184,.12); backdrop-filter:blur(6px); position:sticky; top:0; background:linear-gradient(180deg, rgba(15,23,42,.95), rgba(15,23,42,.7));}
+    header h1{ font-size:18px; margin:0; letter-spacing:.2px; }
+    header .badge{ margin-left:auto; font-size:12px; color:var(--muted); border:1px solid rgba(148,163,184,.2); padding:4px 8px; border-radius:999px; }
+    main{ padding:16px; display:grid; gap:16px; }
+
+    .card{ background:linear-gradient(180deg, rgba(2,6,23,.6), rgba(15,23,42,.7)); border:1px solid rgba(148,163,184,.12); border-radius:16px; padding:14px; }
+    .card h2{ margin:4px 0 10px; font-size:16px; color:#e5f4ff; }
+    .row{ display:flex; gap:10px; }
+
+    button,
+    .button{
+      appearance:none; border:1px solid transparent; background:var(--accent-strong); color:#02131e; font-weight:700;
+      padding:14px 16px; border-radius:14px; width:100%; cursor:pointer; font-size:16px; letter-spacing:.2px;
+      display:flex; align-items:center; justify-content:center; gap:8px; transition: transform .04s ease, background .2s ease, box-shadow .2s ease;
+      box-shadow: 0 4px 14px rgba(14,165,233,.35);
+    }
+    button.secondary{ background:transparent; color:var(--text); border:1px dashed rgba(148,163,184,.35); box-shadow:none; }
+    button.quiet{ background:transparent; color:var(--muted); border:1px solid rgba(148,163,184,.15); box-shadow:none; }
+    button:active{ transform:translateY(1px) }
+
+    input[type="file"]{ display:none; }
+    .helper{ font-size:12px; color:var(--muted); margin-top:6px; }
+
+    .preview{ display:grid; place-items:center; background:#0a0f1c; border-radius:12px; border:1px dashed rgba(148,163,184,.25); min-height:180px; overflow:hidden; }
+    .preview img, .preview canvas{ max-width:100%; height:auto; display:block; }
+
+    .progress{ height:10px; background:#0b1220; border-radius:999px; border:1px solid rgba(148,163,184,.18); overflow:hidden; }
+    .bar{ height:100%; width:0%; background:linear-gradient(90deg, #38bdf8, #22d3ee); }
+
+    .grid{ display:grid; gap:10px; }
+    .field{ display:grid; gap:6px; }
+    .field label{ font-size:12px; color:var(--muted); }
+    .field input, .field textarea{ background:rgba(2,6,23,.7); border:1px solid rgba(148,163,184,.2); color:var(--text); padding:12px; border-radius:12px; font-size:15px; outline:none; }
+    .pill{ font-size:12px; padding:4px 8px; border-radius:999px; background:rgba(56,189,248,.15); color:#a5f3fc; width:max-content; border:1px solid rgba(56,189,248,.35) }
+
+    .actions{ display:grid; gap:10px; }
+    .toast{ position:fixed; bottom:14px; left:50%; transform:translateX(-50%); background:#052e2b; color:#a7f3d0; border:1px solid #065f46; padding:10px 14px; border-radius:12px; display:none; }
+
+    .small{ font-size:12px; color:var(--muted) }
+    .footer{ text-align:center; padding:6px 0 14px; color:var(--muted); font-size:12px; }
+    .kbd{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background:#0b1220; border:1px solid rgba(148,163,184,.25); padding:2px 6px; border-radius:6px; color:#cbd5e1; }
+  </style>
+</head>
+<body>
+  <div class="app" role="application">
+    <header>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2" ry="2"></rect><path d="M8 22h8"></path><path d="M12 18v4"></path><circle cx="8.5" cy="11" r="2.5"></circle><path d="M13 9h5m-5 4h4"></path></svg>
+      <h1>CardScan → VCF</h1>
+      <span class="badge">offline OCR</span>
+    </header>
+
+    <main>
+      <!-- Capture / Upload -->
+      <section class="card" aria-labelledby="captureTitle">
+        <h2 id="captureTitle">1) Add a photo</h2>
+        <div class="row">
+          <label for="cameraInput" class="button" id="cameraBtn" aria-label="Take photo with camera">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#02131e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+            Take Photo
+          </label>
+          <input id="cameraInput" type="file" accept="image/*" capture="environment" />
+
+          <label for="fileInput" class="button secondary" aria-label="Upload image from device">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 5 17 10"/><line x1="12" y1="5" x2="12" y2="20"/></svg>
+            Upload Photo
+          </label>
+          <input id="fileInput" type="file" accept="image/*" />
+        </div>
+        <p class="helper">Tip: place card on a flat, well‑lit surface. Fill the frame and avoid shadows.</p>
+        <div id="dropZone" class="preview" aria-label="Preview area / drop image here">
+          <span class="small">No image yet — take or upload a photo</span>
+        </div>
+      </section>
+
+      <!-- OCR -->
+      <section class="card" aria-labelledby="ocrTitle">
+        <h2 id="ocrTitle">2) Extract text (OCR)</h2>
+        <div class="grid">
+          <div class="progress" aria-label="OCR progress">
+            <div class="bar" id="progressBar"></div>
+          </div>
+          <div class="row">
+            <button id="runOcrBtn" class="button" disabled>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#02131e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10M1 14l5.36 5.36A9 9 0 0 0 20.49 15"/></svg>
+              Run OCR
+            </button>
+            <button id="clearBtn" class="quiet" aria-label="Clear image">Clear</button>
+          </div>
+          <div id="ocrStatus" class="small" aria-live="polite"></div>
+          <details>
+            <summary class="small">Show raw OCR text</summary>
+            <pre id="rawText" style="white-space:pre-wrap; font-size:12px; color:#cbd5e1; background:#0a0f1c; padding:8px; border-radius:10px; border:1px solid rgba(148,163,184,.2);"></pre>
+          </details>
+        </div>
+      </section>
+
+      <!-- Parsed fields -->
+      <section class="card" aria-labelledby="fieldsTitle">
+        <h2 id="fieldsTitle">3) Review & edit</h2>
+        <div class="grid">
+          <div class="field"><label for="name">Name</label><input id="name" placeholder="Full name" autocomplete="name"></div>
+          <div class="field"><label for="title">Job Title</label><input id="title" placeholder="Title"></div>
+          <div class="field"><label for="company">Company</label><input id="company" placeholder="Company"></div>
+          <div class="field"><label for="phone">Phone</label><input id="phone" placeholder="+91 98765 43210" inputmode="tel" autocomplete="tel"></div>
+          <div class="field"><label for="email">Email</label><input id="email" placeholder="name@example.com" inputmode="email" autocomplete="email"></div>
+          <div class="field"><label for="website">Website</label><input id="website" placeholder="https://example.com" inputmode="url" autocomplete="url"></div>
+          <div class="field"><label for="address">Address (optional)</label><textarea id="address" rows="2" placeholder="Street; City; Region; Postal; Country"></textarea></div>
+          <div class="small">Confidence: <span id="confidence">—</span></div>
+        </div>
+      </section>
+
+      <!-- Export -->
+      <section class="card" aria-labelledby="saveTitle">
+        <h2 id="saveTitle">4) Save contact</h2>
+        <div class="actions">
+          <button id="downloadBtn" class="button" disabled>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#02131e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 5 17 10"/><line x1="12" y1="5" x2="12" y2="20"/></svg>
+            Download .vcf
+          </button>
+          <a id="hiddenDownload" class="button" style="display:none"></a>
+          <div class="small">Opening the VCF file on your phone should prompt “Add to Contacts”.</div>
+        </div>
+      </section>
+
+      <div class="footer">Made with <span aria-hidden>🛈</span> Tesseract.js • Works offline</div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">Saved contact.vcf</div>
+
+  <!-- Tesseract.js (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script>
+    // ---------- Utilities ----------
+    const $ = sel => document.querySelector(sel);
+    const byId = id => document.getElementById(id);
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+    const state = {
+      imageBlob: null,
+      ocrText: '',
+      confidence: 0,
+    };
+
+    function setProgress(p){ byId('progressBar').style.width = `${Math.max(0, Math.min(100, p))}%`; }
+    function toast(msg){ const t = byId('toast'); t.textContent = msg; t.style.display='block'; setTimeout(()=>t.style.display='none', 1800); }
+
+    // ---------- Image selection ----------
+    const fileInput = byId('fileInput');
+    const cameraInput = byId('cameraInput');
+    const dropZone = byId('dropZone');
+
+    function previewFile(file){
+      if(!file) return;
+      state.imageBlob = file;
+      const url = URL.createObjectURL(file);
+      dropZone.innerHTML = '';
+      const img = new Image();
+      img.onload = () => URL.revokeObjectURL(url);
+      img.src = url;
+      dropZone.appendChild(img);
+      byId('runOcrBtn').disabled = false;
+      byId('downloadBtn').disabled = true;
+      setProgress(0);
+      byId('ocrStatus').textContent = '';
+      byId('rawText').textContent = '';
+      byId('confidence').textContent = '—';
+    }
+
+    fileInput.addEventListener('change', e => previewFile(e.target.files[0]));
+    cameraInput.addEventListener('change', e => previewFile(e.target.files[0]));
+
+    ;['dragenter','dragover'].forEach(ev => dropZone.addEventListener(ev, e=>{ e.preventDefault(); dropZone.style.borderColor='#38bdf8'; }));
+    ;['dragleave','drop'].forEach(ev => dropZone.addEventListener(ev, e=>{ e.preventDefault(); dropZone.style.borderColor='rgba(148,163,184,.25)'; }));
+    dropZone.addEventListener('drop', e=>{ const f = e.dataTransfer.files?.[0]; if(f) previewFile(f); });
+
+    byId('clearBtn').addEventListener('click', ()=>{ state.imageBlob=null; dropZone.innerHTML='<span class="small">No image yet — take or upload a photo</span>'; byId('runOcrBtn').disabled=true; setProgress(0); byId('ocrStatus').textContent=''; });
+
+    // ---------- OCR ----------
+    async function runOCR(){
+      if(!state.imageBlob){ return; }
+      setProgress(5);
+      byId('ocrStatus').textContent = 'Initializing OCR worker…';
+
+      const worker = await Tesseract.createWorker('eng', 1, {
+        logger: m => {
+          if(m.status === 'recognizing text'){
+            const p = Math.round((m.progress || 0) * 100);
+            setProgress(10 + p * 0.9);
+            byId('ocrStatus').textContent = `Recognizing… ${p}%`;
+          }
+        }
+      });
+
+      const { data } = await worker.recognize(state.imageBlob);
+      await worker.terminate();
+
+      state.ocrText = (data.text || '').trim();
+      state.confidence = Math.round(data.confidence || 0);
+
+      byId('rawText').textContent = state.ocrText;
+      byId('confidence').textContent = state.confidence + '%';
+      byId('ocrStatus').textContent = state.ocrText ? 'OCR complete.' : 'No text detected.';
+      setProgress(100);
+
+      // Parse fields from OCR
+      const fields = parseFields(state.ocrText);
+      fillFields(fields);
+      byId('downloadBtn').disabled = false;
+    }
+
+    byId('runOcrBtn').addEventListener('click', runOCR);
+
+    // ---------- Parsing heuristics ----------
+    function parseFields(text){
+      const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+      const all = lines.join(' ');
+
+      const email = (all.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig) || [])[0] || '';
+      const phones = Array.from(new Set((all.match(/(?:(?:\+\d{1,3}[\s-]?)?(?:\(\d{2,4}\)[\s-]?)?\d{3,5}[\s-]?\d{3,5}(?:[\s-]?\d{3,5})?)/g) || [])))
+        .map(p=>p.replace(/[^+0-9]/g,''))
+        .filter(p=>p.length>=8 && p.length<=15);
+      const phone = phones[0] || '';
+
+      const website = (all.match(/https?:\/\/[\w.-]+\.[a-z]{2,}(?:\/[\w./#?&=%-]*)?|\b(?:www\.)[\w.-]+\.[a-z]{2,}\b/ig) || [])[0] || '';
+
+      // Likely company: first line without email/phone/website keywords & with capitals
+      let company = '';
+      for(const l of lines){
+        if(/[0-9@]/.test(l) || /email|phone|tel|mobile|mob|fax|www|http/i.test(l)) continue;
+        if(l.split(' ').length<=5 && /[A-Z]/.test(l)) { company = l; break; }
+      }
+
+      // Name guess: a line with 2–4 words, many capitals, not company keyword
+      let name = '';
+      for(const l of lines){
+        if(/[0-9@]/.test(l)) continue;
+        const words = l.split(/\s+/);
+        if(words.length>=2 && words.length<=4){
+          const capScore = (l.match(/[A-Z][a-z]+/g) || []).length;
+          if(capScore >= 2){ name = l; break; }
+        }
+      }
+
+      // Job title guess: line containing common role words
+      const title = (lines.find(l=>/manager|engineer|director|founder|consultant|designer|developer|sales|marketing|analyst|officer|head|lead|svp|vp|president|ceo|cto|cfo|coo/i.test(l)) || '').replace(/^[•\-\s]+/, '');
+
+      // Address (very rough): lines after a keyword or with commas & numbers
+      const addrIdx = lines.findIndex(l=>/address|addr\.?/i.test(l));
+      let address = '';
+      if(addrIdx>=0) address = lines.slice(addrIdx+1).join('\n');
+      else {
+        const addrLines = lines.filter(l=>/(\d.*[,])|\bRoad\b|\bStreet\b|\bSt\.?\b|\bAve\.?\b|\bNagar\b|\bColony\b|\bSector\b|\bPhase\b|\bBlock\b|\bPIN\b|\bPincode\b|\bZIP\b/i.test(l));
+        if(addrLines.length) address = addrLines.join('\n');
+      }
+
+      return { name, title, company, phone, email, website, address };
+    }
+
+    function fillFields({name, title, company, phone, email, website, address}){
+      byId('name').value = name || byId('name').value;
+      byId('title').value = title || byId('title').value;
+      byId('company').value = company || byId('company').value;
+      byId('phone').value = phone || byId('phone').value;
+      byId('email').value = email || byId('email').value;
+      byId('website').value = website || byId('website').value;
+      byId('address').value = address || byId('address').value;
+    }
+
+    // ---------- vCard generation ----------
+    function toVCard(){
+      const name = byId('name').value.trim();
+      const title = byId('title').value.trim();
+      const company = byId('company').value.trim();
+      const phone = byId('phone').value.replace(/\s+/g,'');
+      const email = byId('email').value.trim();
+      let website = byId('website').value.trim();
+      const address = byId('address').value.trim();
+
+      if(website && !/^https?:\/\//i.test(website)) website = 'https://' + website;
+
+      const lines = [
+        'BEGIN:VCARD',
+        'VERSION:3.0',
+        `N:${name};;;;`,
+        `FN:${name}`,
+        company ? `ORG:${company}` : '',
+        title ? `TITLE:${title}` : '',
+        phone ? `TEL;TYPE=CELL,VOICE:${phone}` : '',
+        email ? `EMAIL;TYPE=INTERNET:${email}` : '',
+        website ? `URL:${website}` : '',
+        address ? `ADR;TYPE=WORK:;;${address.replace(/\n/g,';')}` : '',
+        'END:VCARD'
+      ].filter(Boolean).join('\r\n');
+
+      return new Blob([lines], { type: 'text/vcard;charset=utf-8' });
+    }
+
+    byId('downloadBtn').addEventListener('click', ()=>{
+      const blob = toVCard();
+      const url = URL.createObjectURL(blob);
+      const a = byId('hiddenDownload');
+      a.href = url;
+      a.download = 'contact.vcf';
+      a.click();
+      setTimeout(()=>URL.revokeObjectURL(url), 1000);
+      toast('Saved contact.vcf');
+    });
+
+    // Keyboard support for accessibility
+    document.addEventListener('keydown', (e)=>{
+      if((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='s'){
+        e.preventDefault();
+        if(!byId('downloadBtn').disabled) byId('downloadBtn').click();
+      }
+    });
+  </script>
+</body>
+</html>
