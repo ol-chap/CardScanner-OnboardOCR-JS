@@ -26,7 +26,6 @@
       <button onclick="takePhoto()">📷 Capture Card</button>
     </div>
     <canvas id="canvas" style="display:none;"></canvas>
-    <button onclick="processImage()">Process Card</button>
     <div id="loading">Extracting contact details...</div>
     <form id="detailsForm" style="display:none;">
       <div class="field"><label>Name</label><input id="name" /></div>
@@ -58,7 +57,7 @@
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       canvas.toBlob(blob => {
         capturedImageBlob = blob;
-        alert('Photo captured! Now tap "Process Card".');
+        processImage(); // Automatically process after capture
       }, 'image/jpeg');
     }
 
