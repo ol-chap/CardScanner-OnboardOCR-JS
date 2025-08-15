@@ -42,13 +42,20 @@
     const canvas = document.getElementById('canvas');
     let capturedImageBlob = null;
 
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      .then(stream => {
-        video.srcObject = stream;
-      })
-      .catch(err => {
-        alert('Camera access denied or unavailable.');
-      });
+    navigator.mediaDevices.getUserMedia({
+  video: {
+    facingMode: 'environment',
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+    focusMode: { ideal: 'continuous' }
+  }
+})
+  .then(stream => {
+    video.srcObject = stream;
+  })
+  .catch(err => {
+    alert('Camera access denied or unavailable.');
+  });
 
     function takePhoto() {
       const ctx = canvas.getContext('2d');
